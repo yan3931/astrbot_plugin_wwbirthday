@@ -5,6 +5,7 @@ import os.path
 
 import aiohttp
 
+import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig
 from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
@@ -192,7 +193,7 @@ class WWBirthday(Star):
         """手动获取今日生日角色"""
         try:
             if not os.path.exists(self.data_file):
-                yield event.plain_result("❌角色数据不存在，请先使用/ww数据更新命令")
+                yield event.plain_result("❌角色数据不存在，请先使用 /ww数据更新 命令")
                 return
 
             with open(self.data_file, "r", encoding="utf-8") as f:
@@ -208,14 +209,14 @@ class WWBirthday(Star):
 
             if len(today_chars) == 1:
                 char = today_chars[0]
-                yield event.plain_result(char.get("quote", ""))
 
                 if self.isphoto:
                     image_path = os.path.join(self.data_dir, f"{char['id']}.png")
                     if os.path.exists(image_path):
-                        yield event.image_result(image_path)
+                        chain = [Comp.Plain(char.get("quote")), Comp.Image.fromFileSystem(image_path)]
                     else:
                         yield event.plain_result("⚠️角色图片不可用")
+                    yield event.chain_result(chain)
             else:
                 response = f"🎉今天是{len(today_chars)}位角色的生日：\n"
                 response += "\n".join(f"- {char['name']}: {char.get('quote', '')[:50]}..." for char in today_chars)
