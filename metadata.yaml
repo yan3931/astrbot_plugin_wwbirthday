@@ -1,5 +1,5 @@
 name: astrbot_plugins_wwbirthday # 这是你的插件的唯一识别名。
-desc: 二游角色生日播报 # 插件简短描述
-version: v1.0 # 插件版本号。格式：v1.1.1 或者 v1.1
+desc: 鸣潮角色生日播报 # 插件简短描述
+version: v1.0.0 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: arkina # 作者
 repo: https://github.com/yan3931/astrbot_plugin_wwbirthday # 插件的仓库地址
