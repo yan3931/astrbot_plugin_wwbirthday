@@ -140,7 +140,7 @@ class WWBirthday(Star):
         except FileNotFoundError:
             raise DataDownloadError("角色数据文件不存在")
 
-    @filter.command("mc数据更新")
+    @filter.command("ww数据更新")
     async def update_chars_command(self, event: AstrMessageEvent):
         """手动更新角色数据命令"""
         try:
@@ -165,7 +165,7 @@ class WWBirthday(Star):
             logger.error(f"更新数据时出错: {str(e)}")
             yield event.plain_result(f"⚠️更新数据时发生错误: {str(e)}")
 
-    @filter.command("mc生日")
+    @filter.command("ww生日")
     async def get_birthday(self, event: AstrMessageEvent):
         """手动获取今日生日角色"""
         try:
@@ -213,7 +213,7 @@ class WWBirthday(Star):
             logger.error(f"获取生日信息出错: {str(e)}")
             yield event.plain_result("⚠️获取生日信息时出错")
 
-    @filter.command("mc本周生日")
+    @filter.command("ww本周生日")
     async def week_birthdays(self, event: AstrMessageEvent):
         """获取本周剩余天数的角色生日"""
         try:
