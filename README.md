@@ -35,6 +35,6 @@ git clone https://github.com/yan3931/astrbot_plugin_wwbirthday
 
 ## 效果图
 
-![download](https://github.com/yan3931/astrbot_plugin_wwbirthday/Screenshot_2025-07-09-18-46-03-143_com.tencent.mo.jpg)
+![download](./Screenshot_2025-07-09-18-46-03-143_com.tencent.mo.jpg)
 
 本项目代码部分参考 [astrbot_plugin_babirthday](https://github.com/laopanmemz/astrbot_plugin_babirthday) 
