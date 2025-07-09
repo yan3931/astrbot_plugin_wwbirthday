@@ -6,10 +6,10 @@
     "default": "true"
   },
   "list": {
-    "description": "开启提醒群",
-    "type": "list",
-    "hint": "在此填入需要提醒的群聊唯一标识符sid，不是群号！例如：aiocqhttp:GroupMessage:1919810114",
-    "default": []
+    "description": "群聊白名单",
+    "type": "string",
+    "hint": "以逗号分隔的群号列表，如：123456789,987654321 仅在此处填写的群号才会启用功能，留空则默认所有群都不启用，",
+    "default": ""
   },
   "time": {
     "description": "每日提醒时间",

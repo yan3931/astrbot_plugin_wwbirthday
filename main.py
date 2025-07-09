@@ -34,8 +34,19 @@ class WWBirthday(Star):
         self.image_download = self.config.get("image_download", False)
         self.image_timeout = self.config.get("image_timeout", 10)
         self.isphoto = self.config.get("isphoto", True)
-        self.group_ids = self.config.get("list", [])
         self.execute_time = self.config.get("time", "9:0")
+
+        group_list = self.config.get("list","")
+        if not group_list or not group_list.strip():
+            groups = set()
+        else:
+            groups = set()
+            for group_id in group_list.split(","):
+                group_id = group_id.strip()
+                if group_id:
+                    groups.add(group_id)
+
+        self.group_ids = groups
 
         # 保存任务引用以便管理
         self.daily_task_handle = asyncio.create_task(self.daily_task())
@@ -120,6 +131,7 @@ class WWBirthday(Star):
                     logger.warning(f"角色 {char['name']} 图片不可用")
 
             for group_id in self.group_ids:
+                group_id = f"aiocqhttp:GroupMessage:{group_id}"
                 await self.context.send_message(group_id, chain)
 
     def sleeptime(self):
@@ -215,7 +227,8 @@ class WWBirthday(Star):
                     if os.path.exists(image_path):
                         chain = [Comp.Plain(char.get("quote")), Comp.Image.fromFileSystem(image_path)]
                     else:
-                        yield event.plain_result("⚠️角色图片不可用")
+                        chain = [Comp.Plain("⚠️角色图片不可用")]
+
                     yield event.chain_result(chain)
             else:
                 response = f"🎉今天是{len(today_chars)}位角色的生日：\n"
@@ -225,3 +238,50 @@ class WWBirthday(Star):
         except Exception as e:
             logger.error(f"获取生日信息出错: {str(e)}", exc_info=True)
             yield event.plain_result("⚠️获取生日信息时出错")
+
+    @filter.command("ww生日enable")
+    async def enable_group_command(self, event: AstrMessageEvent):
+        group_id = event.get_group_id()
+
+        try:
+            self.group_ids.add(group_id)
+
+            try:
+                enabled_str = ",".join(self.group_ids)
+                self.config["list"] = enabled_str
+
+                if hasattr(self.config, "save_config") and callable(getattr(self.config, "save_config")):
+                    self.config.save_config()
+                    logger.info("更新并保存了群组配置")
+
+            except Exception as config_error:
+                logger.error(f"保存群组配置失败: {config_error}")
+
+            yield event.plain_result(f"已为群 {group_id} 启用鸣潮角色生日播报功能")
+
+        except Exception as e:
+            logger.error(f"启用鸣潮角色生日播报功能失败: {e}")
+            yield event.plain_result(f"启用鸣潮角色生日播报功能失败: {str(e)}")
+
+    @filter.command("ww生日disable")
+    async def disable_group_command(self, event: AstrMessageEvent):
+        group_id = event.get_group_id()
+
+        if group_id in self.group_ids:
+            self.group_ids.remove(group_id)
+            logger.info(f"已从白名单中移除群: {group_id}")
+
+        try:
+            # 更新配置
+            enabled_str = ",".join(self.group_ids)
+            self.config["list"] = enabled_str
+
+            # 保存配置
+            if hasattr(self.config, "save_config") and callable(getattr(self.config, "save_config")):
+                self.config.save_config()
+                logger.info("更新并保存了群组配置")
+
+        except Exception as config_error:
+            logger.error(f"保存群组配置失败: {config_error}")
+
+        yield event.plain_result(f"已为群 {group_id} 禁用词云功能")
