@@ -10,7 +10,7 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 鸣潮角色生日播报 
 
 ## 📦 安装
 
-- 可以直接在astrbot的插件市场搜索astrbot_plugin_wwbirthday，点击安装即可
+- ~~可以直接在astrbot的插件市场搜索astrbot_plugin_wwbirthday，点击安装即可~~
 
 - 或者可以直接克隆源码到插件文件夹：
 
