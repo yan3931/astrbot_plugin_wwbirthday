@@ -16,27 +16,40 @@ class DataDownloadError(Exception):
     pass
 
 
-@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.0.0")
+@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.0.1")
 class WWBirthday(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
 
-        self.plugin_dir = os.path.join("data", "plugins", "astrbot_plugin_wwbirthday")
-        self.data_file = os.path.join(self.plugin_dir, "characters.json")
-        self.char_image_dir = os.path.join(self.plugin_dir, "characters")
-        os.makedirs(self.char_image_dir, exist_ok=True)
+        # 使用StarTools获取标准数据目录
+        self.plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.plugin_dir = os.path.join(self.plugin_dir, "astrbot_plugin_wwbirthday")
 
-        self.image_download = self.config.get("image_download", False)  # 新增配置项
-        self.image_timeout = self.config.get("image_timeout", 10)  # 下载超时(秒)
+        self.data_file = os.path.join(self.plugin_dir, "characters.json")
+        self.data_dir = os.path.join(self.plugin_dir, "characters")
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        self.image_download = self.config.get("image_download", False)
+        self.image_timeout = self.config.get("image_timeout", 10)
         self.isphoto = self.config.get("isphoto", True)
         self.group_ids = self.config.get("list", [])
         self.execute_time = self.config.get("time", "9:0")
 
-        asyncio.create_task(self.daily_task())
-        logger.info(f"[wwbirthday] 插件加载成功！版本 v1.0")
+        # 保存任务引用以便管理
+        self.daily_task_handle = asyncio.create_task(self.daily_task())
+        logger.info(f"[wwbirthday] 插件加载成功！版本 v1.0.1")
         logger.info(f"[wwbirthday] 配置: 图片发送={self.isphoto}, 定时时间={self.execute_time}")
         logger.info(f"[wwbirthday] 启用群组: {len(self.group_ids)}个")
+
+    async def on_unload(self):
+        """插件卸载时取消后台任务"""
+        self.daily_task_handle.cancel()
+        try:
+            await self.daily_task_handle
+        except asyncio.CancelledError:
+            pass
+        logger.info("[wwbirthday] 插件已卸载，定时任务已取消")
 
     async def download_image(self, url: str, char_id: int):
         """下载并保存角色图片"""
@@ -44,7 +57,7 @@ class WWBirthday(Star):
             raise ValueError("非法的图片URL格式")
 
         filename = f"{char_id}.png"
-        save_path = os.path.join(self.char_image_dir, filename)
+        save_path = os.path.join(self.data_dir, filename)
 
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.image_timeout)) as session:
@@ -66,7 +79,7 @@ class WWBirthday(Star):
             return local_path
 
         # 检查网络下载的图片是否存在
-        downloaded_path = os.path.join(self.char_image_dir, f"{char['id']}.png")
+        downloaded_path = os.path.join(self.data_dir, f"{char['id']}.png")
         if os.path.exists(downloaded_path):
             return downloaded_path
 
@@ -78,19 +91,32 @@ class WWBirthday(Star):
         return None  # 无可用图片
 
     async def today_birthdays(self):
-        with open(self.data_file, "r", encoding="utf-8") as f:
-            characters = json.load(f)
+        try:
+            with open(self.data_file, "r", encoding="utf-8") as f:
+                characters = json.load(f)
+        except FileNotFoundError:
+            logger.error("角色数据文件不存在")
+            return
 
-        today_str = datetime.date.today().strftime("%-m-%-d")
-        for char in [c for c in characters if c["birthday"] == today_str]:
-            # 构建消息
-            message = char["quote"]
-            # 发送逻辑
+        # 使用f-string统一日期格式
+        today = datetime.date.today()
+        today_str = f"{today.month}-{today.day}"
+        today_chars = [c for c in characters if c.get("birthday") == today_str]
+
+        if not today_chars:
+            logger.info(f"今天没有角色过生日: {today_str}")
+            return
+
+        for char in today_chars:
+            message = char.get("quote", "")
             chain = MessageChain().message(message)
+
             if self.isphoto:
                 img_path = await self.load_character_image(char)
                 if img_path:
                     chain = chain.file_image(img_path)
+                else:
+                    logger.warning(f"角色 {char['name']} 图片不可用")
 
             for group_id in self.group_ids:
                 await self.context.send_message(group_id, chain)
@@ -98,32 +124,36 @@ class WWBirthday(Star):
     def sleeptime(self):
         now = datetime.datetime.now()
         hour, minute = map(int, self.execute_time.split(":"))
-        tomorrow = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if tomorrow <= now:
-            tomorrow += datetime.timedelta(days=1)
-        seconds = (tomorrow - now).total_seconds()
-        return seconds
+        target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+        if target_time <= now:
+            target_time += datetime.timedelta(days=1)
+
+        return (target_time - now).total_seconds()
 
     async def daily_task(self):
-        while True:
-            try:
+        try:
+            while True:
                 sleep_time = self.sleeptime()
-                logger.info(f"[wwbirthday]下一次生日检查将在 {sleep_time / 3600:.1f} 小时后进行")
+                logger.info(f"[wwbirthday] 下次检查: {sleep_time / 3600:.1f}小时后")
                 await asyncio.sleep(sleep_time)
                 await self.today_birthdays()
-                await asyncio.sleep(60)  # 避免重复执行
-            except Exception as e:
-                logger.error(f"定时任务执行失败: {e}")
-                await asyncio.sleep(300)
+                # 避免重复执行
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            logger.info("定时任务被取消")
+            raise
+        except Exception as e:
+            logger.error(f"定时任务异常: {e}")
+            # 任务异常后重新启动
+            self.daily_task_handle = asyncio.create_task(self.daily_task())
 
     async def update_characters(self):
         """更新角色数据并同步图片"""
         try:
-            # 加载本地数据文件
             with open(self.data_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # 图片下载处理
             if self.image_download:
                 download_tasks = []
                 logger.info("开始同步角色图片...")
@@ -132,9 +162,11 @@ class WWBirthday(Star):
                         download_tasks.append(self.download_image(char["image_url"], char["id"]))
 
                 results = await asyncio.gather(*download_tasks)
-                logger.info(f"图片同步完成，成功{sum(results)}/{len(results)}")
+                success_count = sum(1 for r in results if r)
+                logger.info(f"图片同步完成: 成功{success_count}/{len(results)}")
+                return success_count, len(data)
 
-            return data
+            return 0, 0
         except json.JSONDecodeError:
             raise DataDownloadError("数据文件JSON格式错误")
         except FileNotFoundError:
@@ -144,25 +176,15 @@ class WWBirthday(Star):
     async def update_chars_command(self, event: AstrMessageEvent):
         """手动更新角色数据命令"""
         try:
-            # 执行数据更新
-            data = await self.update_characters()
-
-            # 构建响应消息
+            success_count, total_count = await self.update_characters()
             msg = "✅角色数据更新成功！"
             if self.image_download:
-                # 统计成功下载的图片数量
-                image_count = sum(
-                    [1 for char in data if os.path.exists(os.path.join(self.char_image_dir, f"{char['id']}.png"))])
-                msg += f"\n已下载 {image_count}/{len(data)} 个角色图片"
-
-            # 返回成功消息
+                msg += f"\n已下载 {success_count}/{total_count} 个角色图片"
             yield event.plain_result(msg)
-
         except DataDownloadError as e:
-            # 返回错误消息
             yield event.plain_result(f"❌更新失败: {str(e)}")
         except Exception as e:
-            logger.error(f"更新数据时出错: {str(e)}")
+            logger.error(f"更新数据时出错: {str(e)}", exc_info=True)
             yield event.plain_result(f"⚠️更新数据时发生错误: {str(e)}")
 
     @filter.command("ww生日")
@@ -170,7 +192,7 @@ class WWBirthday(Star):
         """手动获取今日生日角色"""
         try:
             if not os.path.exists(self.data_file):
-                yield event.plain_result("❌角色数据不存在，请先使用/mc数据更新命令")
+                yield event.plain_result("❌角色数据不存在，请先使用/ww数据更新命令")
                 return
 
             with open(self.data_file, "r", encoding="utf-8") as f:
@@ -184,75 +206,21 @@ class WWBirthday(Star):
                 yield event.plain_result("⏳今天没有角色过生日哦~")
                 return
 
-            # 对于单个角色生日
             if len(today_chars) == 1:
                 char = today_chars[0]
-                message = char.get("quote", "")
+                yield event.plain_result(char.get("quote", ""))
 
-                # 发送生日消息
-                yield event.plain_result(message)
-
-                # 发送角色图片（如果启用）
                 if self.isphoto:
-                    image_path = os.path.join(self.char_image_dir, f"{char['id']}.png")
+                    image_path = os.path.join(self.data_dir, f"{char['id']}.png")
                     if os.path.exists(image_path):
                         yield event.image_result(image_path)
                     else:
                         yield event.plain_result("⚠️角色图片不可用")
-
-            # 对于多个角色生日
             else:
                 response = f"🎉今天是{len(today_chars)}位角色的生日：\n"
-                for char in today_chars:
-                    preview = char.get("quote", "")[:50] + "..." if char.get("quote") else ""
-                    response += f"\n- {char['name']}: {preview}"
-
+                response += "\n".join(f"- {char['name']}: {char.get('quote', '')[:50]}..." for char in today_chars)
                 yield event.plain_result(response)
 
         except Exception as e:
-            logger.error(f"获取生日信息出错: {str(e)}")
+            logger.error(f"获取生日信息出错: {str(e)}", exc_info=True)
             yield event.plain_result("⚠️获取生日信息时出错")
-
-    @filter.command("ww本周生日")
-    async def week_birthdays(self, event: AstrMessageEvent):
-        """获取本周剩余天数的角色生日"""
-        try:
-            if not os.path.exists(self.data_file):
-                yield event.plain_result("❌角色数据不存在，请先更新数据")
-                return
-
-            with open(self.data_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            today = datetime.date.today()
-            current_weekday = today.isoweekday()
-            days_until_sunday = 7 - current_weekday
-            dates = [today + datetime.timedelta(days=i) for i in range(1, days_until_sunday + 1)]
-
-            birthday_dict = {}
-            for char in data:
-                if birthday := char.get("birthday"):
-                    birthday_dict.setdefault(birthday, []).append(char)
-
-            # 构建消息链
-            chain = MessageChain().message("🎂本周剩余生日角色：\n")
-            found = False
-
-            for d in dates:
-                date_str = f"{d.month}-{d.day}"
-                if chars := birthday_dict.get(date_str):
-                    found = True
-                    chain = chain.message(f"\n📅{d.month}月{d.day}日：")
-                    for char in chars:
-                        # 添加角色专属介绍预览
-                        preview = char.get("quote", "")[:20] + "..." if char.get("quote") else ""
-                        chain = chain.message(f"\n - {char['name']}：{preview}")
-
-            if not found:
-                chain = chain.message("\n本周没有其他角色过生日了~")
-
-            yield event.chain_result(chain)
-
-        except Exception as e:
-            logger.error(f"获取本周生日出错: {e}")
-            yield event.plain_result("⚠️获取本周生日时出错")
