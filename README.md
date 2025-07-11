@@ -38,7 +38,7 @@ git clone https://github.com/yan3931/astrbot_plugin_wwbirthday
 ## 🤝 TODO
 
 - 添加剩余角色数据，插件版本跟随已更新最新版本角色数据（e.g. 插件v1.0.1 -> 开服1.0版本出现角色）
-- i柯tv（QQ群：696748847）缺人活跃气氛！！！
+- [i柯tv](https://qm.qq.com/q/Rz44yEJvI4)求求你们来迫害莫塔里二小姐吧
 
 ## 效果图
 

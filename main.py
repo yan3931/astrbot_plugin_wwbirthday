@@ -17,7 +17,7 @@ class DataDownloadError(Exception):
     pass
 
 
-@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.0.1")
+@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.0.2")
 class WWBirthday(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -36,7 +36,7 @@ class WWBirthday(Star):
         self.isphoto = self.config.get("isphoto", True)
         self.execute_time = self.config.get("time", "9:0")
 
-        group_list = self.config.get("list","")
+        group_list = self.config.get("list", "")
         if not group_list or not group_list.strip():
             groups = set()
         else:
@@ -48,20 +48,30 @@ class WWBirthday(Star):
 
         self.group_ids = groups
 
-        # 保存任务引用以便管理
         self.daily_task_handle = asyncio.create_task(self.daily_task())
-        logger.info(f"[wwbirthday] 插件加载成功！版本 v1.0.1")
+        logger.info(f"[wwbirthday] 插件加载成功！版本 v1.0.2")
         logger.info(f"[wwbirthday] 配置: 图片发送={self.isphoto}, 定时时间={self.execute_time}")
         logger.info(f"[wwbirthday] 启用群组: {len(self.group_ids)}个")
 
-    async def on_unload(self):
-        """插件卸载时取消后台任务"""
-        self.daily_task_handle.cancel()
-        try:
-            await self.daily_task_handle
-        except asyncio.CancelledError:
-            pass
-        logger.info("[wwbirthday] 插件已卸载，定时任务已取消")
+    async def terminate(self):
+        """异步清理资源（插件卸载时调用）"""
+        logger.info("[wwbirthday] 插件终止中……")
+
+        # 取消后台任务
+        if hasattr(self, 'daily_task_handle') and not self.daily_task_handle.done():
+            try:
+                self.daily_task_handle.cancel()
+                # 等待任务完成取消
+                try:
+                    await self.daily_task_handle
+                except asyncio.CancelledError:
+                    logger.info("[wwbirthday] 定时任务已取消")
+                except Exception as e:
+                    logger.error(f"任务取消过程中出错: {e}")
+            except Exception as e:
+                logger.error(f"取消任务时出错: {e}")
+
+        logger.info("[wwbirthday] 插件已卸载")
 
     async def download_image(self, url: str, char_id: int):
         """下载并保存角色图片"""
@@ -284,4 +294,4 @@ class WWBirthday(Star):
         except Exception as config_error:
             logger.error(f"保存群组配置失败: {config_error}")
 
-        yield event.plain_result(f"已为群 {group_id} 禁用词云功能")
+        yield event.plain_result(f"已为群 {group_id} 禁用鸣潮角色生日播报功能")
