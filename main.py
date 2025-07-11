@@ -17,7 +17,7 @@ class DataDownloadError(Exception):
     pass
 
 
-@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.0.2")
+@register("astrbot_plugin_wwbirthday", "arkina", "鸣潮角色生日播报", "1.1.2")
 class WWBirthday(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
